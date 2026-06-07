@@ -606,8 +606,12 @@
     </div>
   </main>
 
+  <script src="/config.js"></script>
   <script>
-    const API_BASE = '/api';
+    let API_BASE = '/api';
+    if (typeof window !== 'undefined' && window.__API_BASE__ !== undefined) {
+      API_BASE = window.__API_BASE__ || API_BASE;
+    }
     let watchlist = JSON.parse(localStorage.getItem('fp_watchlist') || '[]');
     let portfolio = JSON.parse(localStorage.getItem('fp_portfolio') || '[]');
     let marketStatus = {};

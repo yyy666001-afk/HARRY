@@ -52,8 +52,12 @@
     </div>
   </div>
 
+  <script src="/config.js"></script>
   <script>
-    const API = '/api';
+    let API = '/api';
+    if (typeof window !== 'undefined' && window.__API_BASE__ !== undefined) {
+      API = window.__API_BASE__ || API;
+    }
     const path = window.location.pathname.split('/').pop();
     const sym = decodeURIComponent(path || '');
     const elSym = document.getElementById('heroSym');
