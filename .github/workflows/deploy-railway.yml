@@ -1,0 +1,25 @@
+name: Deploy to Railway
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh
+
+      - name: Deploy with Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "RAILWAY_TOKEN or RAILWAY_PROJECT_ID not set. Set repository secrets and re-run."; exit 1
+          fi
+          railway login --apiKey "$RAILWAY_TOKEN"
+          railway up --project "$RAILWAY_PROJECT_ID" --detach || true
