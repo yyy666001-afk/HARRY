@@ -14,6 +14,16 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Check Heroku secrets
+        run: |
+          echo "HEROKU_API_KEY set: ${HEROKU_API_KEY:+yes}"
+          echo "HEROKU_APP_NAME set: ${HEROKU_APP_NAME:+yes}"
+          echo "HEROKU_EMAIL set: ${HEROKU_EMAIL:+yes}"
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

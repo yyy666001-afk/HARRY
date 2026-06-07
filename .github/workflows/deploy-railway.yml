@@ -9,6 +9,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Railway secrets
+        run: |
+          echo "RAILWAY_TOKEN set: ${RAILWAY_TOKEN:+yes}"
+          echo "RAILWAY_PROJECT_ID set: ${RAILWAY_PROJECT_ID:+yes}"
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
       - name: Install Railway CLI
         run: |
           curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh

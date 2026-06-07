@@ -9,6 +9,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Render secrets
+        run: |
+          echo "RENDER_API_KEY set: ${RENDER_API_KEY:+yes}"
+          echo "RENDER_SERVICE_ID set: ${RENDER_SERVICE_ID:+yes}"
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq || true
+
       - name: Trigger Render deploy
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
