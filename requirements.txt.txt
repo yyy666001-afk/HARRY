@@ -1,0 +1,16 @@
+flask==3.0.3
+flask-cors==4.0.1
+requests==2.31.0
+yfinance==0.2.38
+pandas==2.2.2
+numpy==1.26.4
+python-dotenv==1.0.1
+apscheduler==3.10.4
+cachetools==5.3.3
+pytz==2024.1
+beautifulsoup4==4.12.3
+lxml==5.2.2
+gunicorn==22.0.0
+ta==0.11.0
+feedparser==6.0.11
+python-forex==0.1.2
