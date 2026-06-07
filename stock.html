@@ -1,0 +1,17 @@
+<!-- Static stock page for GitHub Pages. Edit /docs/config.js to set backend URL -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>股票詳情 — FinPulse</title>
+</head>
+<body>
+  <div id="content">此為靜態 stock.html，請從 repo 的 templates/stock.html 取得完整版本或將此目錄部署至 GitHub Pages 並設定後端 URL。</div>
+  <script src="/config.js"></script>
+  <script>
+    const API_BASE = (window.__API_BASE__ && window.__API_BASE__ !== '') ? (window.__API_BASE__) : window.location.origin;
+    console.log('stock page API_BASE:', API_BASE);
+  </script>
+</body>
+</html>
