@@ -1,0 +1,27 @@
+<!-- Static copy of templates/index.html for GitHub Pages. Update docs/config.js to set backend URL -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinPulse — 即時金融行情</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* keep minimal: copied styles (omitted here for brevity in docs) */
+  </style>
+</head>
+<body>
+  <!-- NOTE: this is a static copy for GitHub Pages. To configure backend, edit /docs/config.js and set window.__API_BASE__ to your backend URL -->
+
+  <div id="app-root">請使用完整版本（repo templates）或直接部署此目錄為 GitHub Pages。</div>
+
+  <script src="/config.js"></script>
+  <script>
+    const API_BASE = (window.__API_BASE__ && window.__API_BASE__ !== '') ? (window.__API_BASE__) : window.location.origin;
+    // Basic test call
+    console.log('API_BASE:', API_BASE);
+  </script>
+</body>
+</html>

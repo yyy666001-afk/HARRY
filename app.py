@@ -32,6 +32,29 @@ def http_get(url, params=None, max_retries=3, timeout=8):
             return None
     return None
 
+
+def yahoo_quote(symbol):
+    """Fetch quote for a single symbol from Yahoo Finance HTTP API."""
+    try:
+        url = 'https://query1.finance.yahoo.com/v7/finance/quote'
+        r = requests.get(url, params={'symbols': symbol}, timeout=6, headers={'User-Agent': 'Mozilla/5.0'})
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        quote = data.get('quoteResponse', {}).get('result', [])
+        if not quote:
+            return None
+        q = quote[0]
+        return {
+            'price': float(q.get('regularMarketPrice') or 0),
+            'prev': float(q.get('regularMarketPreviousClose') or 0),
+            'change': float((q.get('regularMarketPrice') or 0) - (q.get('regularMarketPreviousClose') or 0)),
+            'change_pct': float(q.get('regularMarketChangePercent') or 0),
+            'raw': q,
+        }
+    except Exception:
+        return None
+
 app = Flask(__name__)
 CORS(app)
 
@@ -291,11 +314,17 @@ def get_commodities_from_api():
     result = []
     for sym, (name, unit, exchange) in comms.items():
         try:
-            t = yf.Ticker(sym)
-            hist = t.history(period='5d', interval='1d')
-            if not hist.empty and len(hist) > 1:
-                price = float(hist['Close'].iloc[-1])
-                prev_price = float(hist['Close'].iloc[-2])
+            # Try Yahoo HTTP API first (supports futures symbols like GC=F)
+            q = yahoo_quote(sym)
+            if q and q['price'] > 0:
+                price = q['price']
+                prev_price = q['prev']
+            else:
+                t = yf.Ticker(sym)
+                hist = t.history(period='2d', interval='1d')
+                if not hist.empty and len(hist) > 0:
+                    price = float(hist['Close'].iloc[-1])
+                    prev_price = float(hist['Close'].iloc[-2]) if len(hist) > 1 else 0
                 chg = price - prev_price
                 chg_pct = round(chg / prev_price * 100, 2) if prev_price else 0
                 result.append({
@@ -449,21 +478,38 @@ def get_us_stocks_with_tech():
         tickers = yf.Tickers(' '.join(us_symbols))
         for sym in us_symbols:
             try:
-                t = tickers.tickers[sym]
-                info = t.fast_info
-                price = float(info.last_price or 0)
-                prev = float(info.previous_close or 0)
-                if price > 0 and prev > 0:
-                    chg = price - prev
-                    chg_pct = round(chg / prev * 100, 2)
-                    fb = fallback_data.get(sym, (sym, price, 0))
-                    results.append({
-                        'symbol': sym, 'name': fb[0],
-                        'price': round(price, 2), 'change': round(chg, 2),
-                        'change_pct': chg_pct, 'market': 'US',
-                    })
-                    continue
-            except:
+                t = tickers.tickers.get(sym)
+                if t:
+                    price = 0
+                    prev = 0
+                    # Try Yahoo HTTP API first (more reliable in some environments)
+                    q = yahoo_quote(sym)
+                    if q and q['price'] > 0:
+                        results.append({'symbol': sym, 'name': fallback_data.get(sym, (sym,))[0],
+                                        'price': round(q['price'], 2), 'change': round(q['change'], 2),
+                                        'change_pct': round(q['change_pct'], 2), 'market': 'US'})
+                        continue
+                    # Prefer recent daily history for accurate close/previous values
+                    try:
+                        hist = t.history(period='2d', interval='1d')
+                        if not hist.empty:
+                            price = float(hist['Close'].iloc[-1])
+                            if len(hist) >= 2:
+                                prev = float(hist['Close'].iloc[-2])
+                    except Exception:
+                        pass
+                    # Fallback to fast_info if history not available
+                    if not price:
+                        info = t.fast_info
+                        price = float(info.last_price or 0)
+                        prev = float(info.previous_close or 0)
+                    if price > 0:
+                        chg = price - (prev or price)
+                        chg_pct = round(chg / prev * 100, 2) if prev else 0
+                        fb = fallback_data.get(sym, (sym, price, 0))
+                        results.append({'symbol': sym, 'name': fb[0], 'price': round(price, 2), 'change': round(chg, 2), 'change_pct': chg_pct, 'market': 'US'})
+                        continue
+            except Exception:
                 pass
             fb = fallback_data.get(sym, (sym, 0, 0))
             name, p, chg_pct = fb
@@ -474,10 +520,8 @@ def get_us_stocks_with_tech():
     except Exception as e:
         logger.warning(f"US stocks error: {e}")
         for sym, (name, price, chg_pct) in fallback_data.items():
-            results.append({
-                'symbol': sym, 'name': name, 'price': price,
-                'change': round(price * chg_pct / 100, 2), 'change_pct': chg_pct, 'market': 'US',
-            })
+            results.append({'symbol': sym, 'name': name, 'price': price,
+                            'change': round(price * chg_pct / 100, 2), 'change_pct': chg_pct, 'market': 'US'})
     with cache_lock:
         rt_cache[key] = results
     return results
@@ -491,18 +535,31 @@ def get_us_indices():
     results = {}
     for sym, (name, fallback_price) in indices.items():
         try:
-            t = yf.Ticker(sym)
-            info = t.fast_info
-            price = float(info.last_price or 0)
-            prev = float(info.previous_close or 0)
-            if price > 0:
-                chg = price - prev
-                results[sym] = {
-                    'name': name, 'price': round(price, 2),
-                    'change': round(chg, 2), 'change_pct': round(chg / prev * 100, 2) if prev else 0,
-                }
+            # Try Yahoo HTTP API first
+            q = yahoo_quote(sym)
+            if q and q['price'] > 0:
+                results[sym] = {'name': name, 'price': round(q['price'], 2), 'change': round(q['change'], 2), 'change_pct': round(q['change_pct'], 2)}
                 continue
-        except:
+            t = yf.Ticker(sym)
+            price = 0
+            prev = 0
+            try:
+                hist = t.history(period='2d', interval='1d')
+                if not hist.empty:
+                    price = float(hist['Close'].iloc[-1])
+                    if len(hist) >= 2:
+                        prev = float(hist['Close'].iloc[-2])
+            except Exception:
+                pass
+            if not price:
+                info = t.fast_info
+                price = float(info.last_price or 0)
+                prev = float(info.previous_close or 0)
+            if price > 0:
+                chg = price - (prev or price)
+                results[sym] = {'name': name, 'price': round(price, 2), 'change': round(chg, 2), 'change_pct': round(chg / prev * 100, 2) if prev else 0}
+                continue
+        except Exception:
             pass
         results[sym] = {'name': name, 'price': fallback_price, 'change': 0, 'change_pct': 0}
     with cache_lock:
@@ -525,10 +582,27 @@ def get_tw_etfs():
     result = []
     for sym, (name, price, chg_pct) in etf_fallback.items():
         try:
-            t = yf.Ticker(sym + '.TW')
-            info = t.fast_info
-            yf_price = float(info.last_price or 0)
-            yf_prev = float(info.previous_close or 0)
+            # Try Yahoo HTTP API first using TW suffix
+            q = yahoo_quote(sym + '.TW')
+            if q and q['price'] > 0:
+                yf_price = q['price']
+                yf_prev = q['prev']
+            else:
+                t = yf.Ticker(sym + '.TW')
+                yf_price = 0
+                yf_prev = 0
+                try:
+                    hist = t.history(period='2d', interval='1d')
+                    if not hist.empty:
+                        yf_price = float(hist['Close'].iloc[-1])
+                        if len(hist) >= 2:
+                            yf_prev = float(hist['Close'].iloc[-2])
+                except Exception:
+                    pass
+                if not yf_price:
+                    info = t.fast_info
+                    yf_price = float(info.last_price or 0)
+                    yf_prev = float(info.previous_close or 0)
             if yf_price > 0:
                 yf_chg = yf_price - yf_prev
                 result.append({
@@ -538,7 +612,7 @@ def get_tw_etfs():
                     'market': 'TW',
                 })
                 continue
-        except:
+        except Exception:
             pass
         result.append({
             'symbol': sym, 'name': name, 'price': price,
@@ -607,11 +681,19 @@ def get_stock_detail(symbol):
         if key in static_cache:
             return static_cache[key]
     try:
+        # Try Yahoo HTTP API for a reliable price first
+        q = yahoo_quote(symbol)
         t = yf.Ticker(symbol)
         info = t.info
         fast = t.fast_info
-        price = float(fast.last_price or 0)
-        prev = float(fast.previous_close or 0)
+        price = 0
+        prev = 0
+        if q and q.get('price'):
+            price = float(q.get('price') or 0)
+            prev = float(q.get('prev') or 0)
+        else:
+            price = float(fast.last_price or 0)
+            prev = float(fast.previous_close or 0)
         chg = price - prev
         hist = t.history(period='3mo', interval='1d')
         tech = {}
