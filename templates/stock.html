@@ -49,12 +49,29 @@
     </div>
     <div class="chart-wrap">
       <canvas id="histChart" height="120"></canvas>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;gap:8px">
+            <button class="star-btn" data-tab="realtime">即時走勢</button>
+            <button class="star-btn" data-tab="tech">技術分析</button>
+            <button class="star-btn" data-tab="flows">法人買賣超</button>
+            <button class="star-btn" data-tab="financials">財務分析</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">更新頻率: <span id="refreshFreq">30s</span></div>
+        </div>
+        <div id="tab-realtime" class="tab-panel"><canvas id="realtimeChart" height="120"></canvas></div>
+        <div id="tab-tech" class="tab-panel" style="display:none"><canvas id="histChart" height="120"></canvas></div>
+        <div id="tab-flows" class="tab-panel" style="display:none"><div id="flowsWrap"></div></div>
+        <div id="tab-financials" class="tab-panel" style="display:none"><div id="finWrap"></div></div>
     </div>
   </div>
 
   <script src="/config.js"></script>
   <script>
     let API = '/api';
+      let API = '/api';
+      if (typeof window !== 'undefined' && window.__API_BASE__ !== undefined) {
+        API = window.__API_BASE__ || API;
+      }
     if (typeof window !== 'undefined' && window.__API_BASE__ !== undefined) {
       API = window.__API_BASE__ || API;
     }
@@ -128,6 +145,50 @@
         chart = new Chart(ctx, { type: 'candlestick', data: { datasets:[{ label: sym, data: candles }] }, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ type:'time', time:{ tooltipFormat:'yyyy-MM-dd HH:mm' } } } } });
       }catch(e){ console.error('hist', e); }
     }
+      // tab handling and loaders
+      const tabs = Array.from(document.querySelectorAll('.chart-wrap button[data-tab]'));
+      let activeTab = 'realtime';
+      const setActiveTab = (t)=>{
+        activeTab = t;
+        ['realtime','tech','flows','financials'].forEach(n=>{
+          const el = document.getElementById('tab-'+n);
+          if(el) el.style.display = (n===t)?'block':'none';
+        });
+        // call loader for tab
+        if(t==='realtime') loadRealtime();
+        if(t==='tech') loadTech();
+        if(t==='flows') loadFlows();
+        if(t==='financials') loadFinancials(detailData||{});
+      };
+      tabs.forEach(b=>b.addEventListener('click', ()=> setActiveTab(b.dataset.tab)));
+
+      async function loadTech(){
+        try{
+          const map = intervalMap[currentInterval] || intervalMap['1d'];
+          const r = await fetch(`${API}/stock/${encodeURIComponent(sym)}/history?period=${map.period}&interval=${map.interval}`);
+          const j = await r.json(); const rows = j.data || [];
+          if(!rows.length) return;
+          const candles = rows.map(r=>({ x: r.date, o: r.open, h: r.high, l: r.low, c: r.close }));
+          const ctx = document.getElementById('histChart').getContext('2d');
+          if(chart) chart.destroy();
+          if(typeof Chart.controllers?.candlestick === 'undefined'){
+            await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); }).catch(()=>{});
+          }
+          chart = new Chart(ctx, { type: 'candlestick', data: { datasets:[{ label: sym, data: candles }] }, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ type:'time', time:{ tooltipFormat:'yyyy-MM-dd HH:mm' } } } } });
+        }catch(e){ console.error('hist', e); }
+      }
+
+      async function loadRealtime(){
+        try{
+          const r = await fetch(`${API}/stock/${encodeURIComponent(sym)}/detail`);
+          const j = await r.json();
+          const d = j.data || {};
+          flashHero(d.price||0, d.change||0);
+          elChange.textContent = `${d.change_pct>0?'+':''}${d.change_pct}%  ${d.change>=0?'+':''}${fmt(d.change)}`;
+          elChange.className = `change ${d.change_pct>0?'up':d.change_pct<0?'down':''}`;
+          elUpdated.textContent = '最後更新: ' + new Date().toLocaleString();
+        }catch(e){ console.error('realtime', e); }
+      }
 
     function flashHero(price, change){
       const prev = parseFloat(elPrice.dataset.prev || '0');
